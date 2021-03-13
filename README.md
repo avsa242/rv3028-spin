@@ -1,5 +1,4 @@
 # rv3028-spin
-
 --------------
 
 This is a P8X32A/Propeller, ~~P2X8C4M64P/Propeller 2~~ driver object for the RV3028 RTC
@@ -12,6 +11,8 @@ This is a P8X32A/Propeller, ~~P2X8C4M64P/Propeller 2~~ driver object for the RV3
 * Set date/time
 * Set automatic power supply switchover function
 * Set CLKOUT clock frequency output
+* Set countdown timer, timer source clock freq
+* Clock data valid flag
 
 ## Requirements
 
