@@ -99,7 +99,8 @@ CON
         AIE_MASK    = (1 << AIE) ^ CTRL2_MASK
         EIE_MASK    = (1 << EIE) ^ CTRL2_MASK
         IE_MASK     = (IE_BITS << IE) ^ CTRL2_MASK
-        HR12_24_MASK= 1 ^ CTRL2_MASK
+        HR12_24_MASK= (1 << HR12_24) ^ CTRL2_MASK
+        RESET_MASK  = 1 ^ CTRL2_MASK
 
     GPBITS          = $11
     GPBITS_MASK     = $7F

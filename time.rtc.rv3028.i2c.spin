@@ -27,10 +27,10 @@ CON
 
 VAR
 
+    long _clkdata_ok                            ' Clock data integrity
+
     byte _secs, _mins, _hours                   ' Vars to hold time
     byte _wkdays, _days, _months, _years        ' Order is important!
-
-    byte _clkdata_ok                            ' Clock data integrity
 
 OBJ
 
@@ -66,15 +66,15 @@ PUB Stop{}
 
 PUB Defaults{}
 ' Set factory defaults
-{
+
 PUB ClockDataOk{}: flag
-' Flag indicating battery voltage ok/clock data integrity ok
+' Flag indicating supply voltage ok/clock data integrity ok
 '   Returns:
-'       TRUE (-1): Battery voltage ok, clock data integrity guaranteed
-'       FALSE (0): Battery voltage low, clock data integrity not guaranteed
-    pollrtc{}
-    return _clkdata_ok == 0
-}
+'       TRUE (-1): Supply voltage ok, clock data integrity guaranteed
+'       FALSE (0): Supply voltage low, clock data integrity not guaranteed
+    readreg(core#STATUS, 1, @flag)
+    _clkdata_ok := flag := ((flag & 1) == 0)
+
 PUB BackupSwitchover(mode): curr_mode
 ' Set backup power supply automatic switchover function
 '  *SWO_DIS (0): Switchover disabled
@@ -220,9 +220,21 @@ PUB Minutes(minute): curr_min
 
 PUB PollRTC{}
 ' Read the time data from the RTC and store it in hub RAM
-' Update the clock integrity status bit from the RTC
     readreg(core#SECONDS, 7, @_secs)
-'    _clkdata_ok := (_secs >> core#VL) & 1       ' Clock integrity bit
+
+PUB Reset{} | tmp
+' Perform soft-reset
+    tmp := 0
+
+    readreg(core#CTRL2, 1, @tmp)
+    tmp := (tmp & core#RESET_MASK) | 1
+    writereg(core#CTRL2, 1, @tmp)               ' soft-reset
+
+    tmp := 0
+
+    readreg(core#STATUS, 1, @tmp)               ' clear the power-on/reset flag
+    tmp &= core#PORF_MASK
+    writereg(core#STATUS, 1, @tmp)
 
 PUB Seconds(second): curr_sec
 ' Set seconds
@@ -317,9 +329,6 @@ PRI bcd2int(bcd): int
 PRI int2bcd(int): bcd
 ' Convert integer to BCD (Binary Coded Decimal)
     return ((int / 10) << 4) + (int // 10)
-
-PUB Reset{}
-' Reset the device
 
 PRI readReg(reg_nr, nr_bytes, ptr_buff) | cmd_pkt
 ' Read nr_bytes from the device into ptr_buff
