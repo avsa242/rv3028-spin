@@ -1,8 +1,8 @@
 {
     --------------------------------------------
     Filename: time.rtc.rv3028.i2c.spin
-    Author:
-    Description:
+    Author: Jesse Burt
+    Description: Driver for the RV3028 RTC
     Copyright (c) 2021
     Started Mar 13, 2021
     Updated Mar 13, 2021
@@ -20,15 +20,23 @@ CON
     DEF_HZ            = 100_000
     I2C_MAX_FREQ      = core#I2C_MAX_FREQ
 
+' Automatic backup switchover modes
+    SWO_DIS         = %00
+    SWO_DIRECT      = %01
+    SWO_LEVEL       = %11
+
 VAR
 
+    byte _secs, _mins, _hours                   ' Vars to hold time
+    byte _wkdays, _days, _months, _years        ' Order is important!
+
+    byte _clkdata_ok                            ' Clock data integrity
 
 OBJ
 
 ' choose an I2C engine below
     i2c : "com.i2c"                             ' PASM I2C engine (up to ~800kHz)
-'    i2c : "tiny.com.i2c"                        ' SPIN I2C engine (~40kHz)
-    core: "core.con.rv3028.spin"       ' hw-specific low-level const's
+    core: "core.con.rv3028"                     ' hw-specific low-level const's
     time: "time"                                ' basic timing functions
 
 PUB Null{}
@@ -45,7 +53,7 @@ PUB Startx(SCL_PIN, SDA_PIN, I2C_HZ): status
         if (status := i2c.init(SCL_PIN, SDA_PIN, I2C_HZ))
             time.usleep(core#T_POR)             ' wait for device startup
             if i2c.present(SLAVE_WR)            ' test device bus presence
-'                if deviceid{} == core#DEVID_RESP' validate device 
+                if deviceid{} == core#DEVID_RESP' validate device
                     return
     ' if this point is reached, something above failed
     ' Re-check I/O pin assignments, bus speed, connections, power
@@ -58,10 +66,257 @@ PUB Stop{}
 
 PUB Defaults{}
 ' Set factory defaults
+{
+PUB ClockDataOk{}: flag
+' Flag indicating battery voltage ok/clock data integrity ok
+'   Returns:
+'       TRUE (-1): Battery voltage ok, clock data integrity guaranteed
+'       FALSE (0): Battery voltage low, clock data integrity not guaranteed
+    pollrtc{}
+    return _clkdata_ok == 0
+}
+PUB BackupSwitchover(mode): curr_mode
+' Set backup power supply automatic switchover function
+'  *SWO_DIS (0): Switchover disabled
+'   SWO_DIRECT (1): Switch when Vdd < Vbackup
+'   SWO_LEVEL (3): Switch when Vdd < 2.0V AND Vbackup > 2.0V
+'   NOTE: SWO_LEVEL (3) is recommended for use if the
+'       backup power supply voltage is similar to the Propeller's,
+'       to avoid unnecessary switching
+    curr_mode := 0
+    readreg(core#EE_BACKUP, 1, @curr_mode)
+    case mode
+        SWO_DIS, SWO_DIRECT, SWO_LEVEL:
+            mode <<= core#BSM
+        other:
+            return ((curr_mode >> core#BSM) & core#BSM_BITS)
+
+    mode := ((curr_mode & core#BSM_MASK) | mode)
+    writereg(core#EE_BACKUP, 1, @mode)
+{
+PUB ClockOutFreq(freq): curr_freq
+' Set frequency of CLKOUT pin, in Hz
+'   Valid values: 0, 1, 32, 1024, 32768
+'   Any other value polls the chip and returns the current setting
+    curr_freq := 0
+    readreg(core#CTRL_CLKOUT, 1, @curr_freq)
+    case freq
+        0:
+            freq := 1 << core#FE                ' Turn off clock output
+        1, 32, 1024, 32768:
+            freq := lookdownz(freq: 32768, 1024, 32, 1)
+        other:
+            curr_freq &= core#FD_BITS
+            return lookupz(curr_freq: 32768, 1024, 32, 1)
+
+    freq := ((curr_freq & core#FD_MASK & core#FE_MASK) | freq) & core#CTRL_CLKOUT_MASK
+    writereg(core#CTRL_CLKOUT, 1, @freq)
+}
+PUB Date(ptr_date)
 
 PUB DeviceID{}: id
 ' Read device identification
     readreg(core#ID, 1, @id)
+
+PUB Day(d): curr_day
+' Set day of month
+'   Valid values: 1..31
+'   Any other value returns the last read current day
+    case d
+        1..31:
+            d := int2bcd(d)
+            writereg(core#DATE, 1, @d)
+        other:
+            return bcd2int(_days)
+
+PUB Hours(hr): curr_hr
+' Set hours
+'   Valid values: 0..23
+'   Any other value returns the last read current hour
+    case hr
+        0..23:
+            hr := int2bcd(hr)
+            writereg(core#HOURS, 1, @hr)
+        other:
+            return bcd2int(_hours)
+{
+PUB IntClear(mask) | tmp
+' Clear interrupts, using a bitmask
+'   Valid values:
+'       Bits: 1..0
+'           1: clear alarm interrupt
+'           0: clear timer interrupt
+'           For each bit, 0 to leave as-is, 1 to clear
+'   Any other value is ignored
+    case mask
+        %01, %10, %11:
+            readreg(core#CTRLSTAT2, 1, @tmp)
+            mask := (mask ^ %11) << core#TF     ' Reg bits are inverted
+            tmp |= mask
+            tmp &= core#CTRLSTAT2_MASK
+            writereg(core#CTRLSTAT2, 1, @tmp)
+        other:
+            return
+
+PUB Interrupt{}: flags
+' Flag indicating one or more interrupts asserted
+    readreg(core#CTRLSTAT2, 1, @flags)
+    flags := (flags >> core#TF) & core#IF_BITS
+
+PUB IntMask(mask): curr_mask
+' Set interrupt mask
+'   Valid values:
+'       Bits: 1..0
+'           1: enable alarm interrupt
+'           0: enable timer interrupt
+'   Any other value polls the chip and returns the current setting
+    readreg(core#CTRLSTAT2, 1, @curr_mask)
+    case mask
+        %00..%11:
+        other:
+            return curr_mask & core#IE_BITS
+
+    mask := ((curr_mask & core#IE_MASK) | mask) & core#CTRLSTAT2_MASK
+    writereg(core#CTRLSTAT2, 1, @mask)
+
+PUB IntPinState(state): curr_state
+' Set interrupt pin active state
+'   WHEN_TF_ACTIVE (0): /INT is active when timer interrupt asserted
+'   INT_PULSES (1): /INT pulses at rate set by TimerClockFreq()
+    curr_state := 0
+    readreg(core#CTRLSTAT2, 1, @curr_state)
+    case state
+        WHEN_TF_ACTIVE, INT_PULSES:
+        other:
+            return (curr_state >> core#TI_TP) & 1
+
+    state := ((curr_state & core#TI_TP_MASK) | state) & core#CTRLSTAT2_MASK
+    writereg(core#CTRLSTAT2, 1, @state)
+}
+PUB Month(m): curr_month
+' Set month
+'   Valid values: 1..12
+'   Any other value returns the last read current month
+    case m
+        1..12:
+            m := int2bcd(m)
+            writereg(core#MONTH, 1, @m)
+        other:
+            return bcd2int(_months)
+
+PUB Minutes(minute): curr_min
+' Set minutes
+'   Valid values: 0..59
+'   Any other value returns the last read current minute
+    case minute
+        0..59:
+            minute := int2bcd(minute)
+            writereg(core#MINUTES, 1, @minute)
+        other:
+            return bcd2int(_mins)
+
+PUB PollRTC{}
+' Read the time data from the RTC and store it in hub RAM
+' Update the clock integrity status bit from the RTC
+    readreg(core#SECONDS, 7, @_secs)
+'    _clkdata_ok := (_secs >> core#VL) & 1       ' Clock integrity bit
+
+PUB Seconds(second): curr_sec
+' Set seconds
+'   Valid values: 0..59
+'   Any other value polls the RTC and returns the current second
+    case second
+        0..59:
+            second := int2bcd(second)
+            writereg(core#SECONDS, 1, @second)
+        other:
+            return bcd2int(_secs)
+{
+PUB Timer(val): curr_val
+' Set countdown timer value
+'   Valid values: 0..255
+'   Any other value polls the chip and returns the current setting
+'   NOTE: The countdown period in seconds is equal to
+'       Timer() / TimerClockFreq()
+'       e.g., if Timer() is set to 255, and TimerClockFreq() is set to 1,
+'       the period is 255 seconds
+    case val
+        0..255:
+            writereg(core#TIMER, 1, @val)
+        other:
+            repeat 2                                    ' Datasheet recommends
+                curr_val := 0                           ' 2 reads to check for
+                readreg(core#TIMER, 1, @curr_val.byte[0]) ' consistent results
+                readreg(core#TIMER, 1, @curr_val.byte[1]) '
+                if curr_val.byte[0] == curr_val.byte[1]
+                    curr_val.byte[1] := 0
+                    quit
+            return curr_val & core#TIMER_MASK
+
+PUB TimerClockFreq(freq): curr_freq
+' Set timer source clock frequency, in Hz
+'   Valid values:
+'       1_60 (1/60Hz), 1, 64, 4096
+'   Any other value polls the chip and returns the current setting
+    curr_freq := 0
+    readreg(core#CTRL_TIMER, 1, @curr_freq)
+    case freq
+        1_60, 1, 64, 4096:
+            freq := lookdownz(freq: 4096, 64, 1, 1_60)
+        other:
+            curr_freq &= core#TD_BITS
+            return lookupz(curr_freq: 4096, 64, 1, 1_60)
+
+    freq := ((curr_freq & core#TD_MASK) | freq) & core#CTRL_TIMER_MASK
+    writereg(core#CTRL_TIMER, 1, @freq)
+
+PUB TimerEnabled(state): curr_state
+' Enable timer
+'   Valid values: TRUE (-1 or 1), FALSE (0)
+'   Any other value polls the chip and returns the current setting
+    curr_state := 0
+    readreg(core#CTRL_TIMER, 1, @curr_state)
+    case ||(state)
+        0, 1:
+            state := ||(state) << core#TE
+        other:
+            return ((curr_state >> core#TE) & 1) == 1
+
+    if state == 0                               ' If disabling the timer,
+        timerclockfreq(1_60)                    ' set freq to 1/60Hz for
+                                                ' lowest power usage
+    state := ((curr_state & core#TE_MASK) | state) & core#CTRL_TIMER_MASK
+    writereg(core#CTRL_TIMER, 1, @state)
+}
+PUB Weekday(wkday): curr_wkday
+' Set day of week
+'   Valid values: 1..7
+'   Any other value returns the last read current day of week
+    case wkday
+        1..7:
+            wkday := int2bcd(wkday-1)
+            writereg(core#WKDAY, 1, @wkday)
+        other:
+            return bcd2int(_wkdays) + 1
+
+PUB Year(yr): curr_yr
+' Set 2-digit year
+'   Valid values: 0..99
+'   Any other value returns the last read current year
+    case yr
+        0..99:
+            yr := int2bcd(yr)
+            writereg(core#YEAR, 1, @yr)
+        other:
+            return bcd2int(_years)
+
+PRI bcd2int(bcd): int
+' Convert BCD (Binary Coded Decimal) to integer
+    return ((bcd >> 4) * 10) + (bcd // 16)
+
+PRI int2bcd(int): bcd
+' Convert integer to BCD (Binary Coded Decimal)
+    return ((int / 10) << 4) + (int // 10)
 
 PUB Reset{}
 ' Reset the device
