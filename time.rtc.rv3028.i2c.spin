@@ -255,14 +255,14 @@ PUB Timer(val): curr_val
                     curr_val.byte[1] := 0
                     quit
             return curr_val & core#TIMER_MASK
-
+}
 PUB TimerClockFreq(freq): curr_freq
 ' Set timer source clock frequency, in Hz
 '   Valid values:
 '       1_60 (1/60Hz), 1, 64, 4096
 '   Any other value polls the chip and returns the current setting
     curr_freq := 0
-    readreg(core#CTRL_TIMER, 1, @curr_freq)
+    readreg(core#CTRL1, 1, @curr_freq)
     case freq
         1_60, 1, 64, 4096:
             freq := lookdownz(freq: 4096, 64, 1, 1_60)
@@ -270,9 +270,9 @@ PUB TimerClockFreq(freq): curr_freq
             curr_freq &= core#TD_BITS
             return lookupz(curr_freq: 4096, 64, 1, 1_60)
 
-    freq := ((curr_freq & core#TD_MASK) | freq) & core#CTRL_TIMER_MASK
-    writereg(core#CTRL_TIMER, 1, @freq)
-}
+    freq := ((curr_freq & core#TD_MASK) | freq)
+    writereg(core#CTRL1, 1, @freq)
+
 PUB TimerEnabled(state): curr_state
 ' Enable countdown timer
 '   Valid values: TRUE (-1 or 1), FALSE (0)
