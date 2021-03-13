@@ -88,14 +88,17 @@ CON
         TIE         = 4
         AIE         = 3
         EIE         = 2
+        IE          = 2
         HR12_24     = 1
         RESET       = 0
+        IE_BITS     = %111111
         TSE_MASK    = (1 << TSE) ^ CTRL2_MASK
         CLKIE_MASK  = (1 << CLKIE) ^ CTRL2_MASK
         UIE_MASK    = (1 << UIE) ^ CTRL2_MASK
         TIE_MASK    = (1 << TIE) ^ CTRL2_MASK
         AIE_MASK    = (1 << AIE) ^ CTRL2_MASK
         EIE_MASK    = (1 << EIE) ^ CTRL2_MASK
+        IE_MASK     = (IE_BITS << IE) ^ CTRL2_MASK
         HR12_24_MASK= 1 ^ CTRL2_MASK
 
     GPBITS          = $11

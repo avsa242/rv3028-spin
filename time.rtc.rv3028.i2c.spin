@@ -160,23 +160,28 @@ PUB Interrupt{}: flags
 ' Flag indicating one or more interrupts asserted
     readreg(core#CTRLSTAT2, 1, @flags)
     flags := (flags >> core#TF) & core#IF_BITS
-
+}
 PUB IntMask(mask): curr_mask
 ' Set interrupt mask
 '   Valid values:
-'       Bits: 1..0
-'           1: enable alarm interrupt
-'           0: enable timer interrupt
+'       Bits: 5..0
+'           5: Enable time stamp
+'           4: Clock output on CLKOUT
+'           3: Timer update event
+'           2: Timer countdown event
+'           1: Alarm event
+'           0: External event (EVI pin)/Automatic Backup switchover event
 '   Any other value polls the chip and returns the current setting
-    readreg(core#CTRLSTAT2, 1, @curr_mask)
+    readreg(core#CTRL2, 1, @curr_mask)
     case mask
-        %00..%11:
+        0..%111111:
+            mask <<= core#EIE
         other:
-            return curr_mask & core#IE_BITS
+            return ((curr_mask >> core#EIE) & core#IE_BITS)
 
-    mask := ((curr_mask & core#IE_MASK) | mask) & core#CTRLSTAT2_MASK
-    writereg(core#CTRLSTAT2, 1, @mask)
-
+    mask := ((curr_mask & core#IE_MASK) | mask)
+    writereg(core#CTRL2, 1, @mask)
+{
 PUB IntPinState(state): curr_state
 ' Set interrupt pin active state
 '   WHEN_TF_ACTIVE (0): /INT is active when timer interrupt asserted
@@ -341,7 +346,7 @@ PRI readReg(reg_nr, nr_bytes, ptr_buff) | cmd_pkt
 PRI writeReg(reg_nr, nr_bytes, ptr_buff) | cmd_pkt
 ' Write nr_bytes to the device from ptr_buff
     case reg_nr
-        $00..$3F:
+        $00..$2A, $2C..$3F:
             cmd_pkt.byte[0] := SLAVE_WR
             cmd_pkt.byte[1] := reg_nr
             i2c.start{}
