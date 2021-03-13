@@ -339,12 +339,8 @@ PRI readReg(reg_nr, nr_bytes, ptr_buff) | cmd_pkt
             i2c.wrblock_lsbf(@cmd_pkt, 2)
             i2c.start{}
             i2c.wr_byte(SLAVE_RD)
-
-' choose the block below appropriate to your device
-    ' write LSByte to MSByte
             i2c.rdblock_lsbf(ptr_buff, nr_bytes, i2c#NAK)
             i2c.stop{}
-    '
         other:                                  ' invalid reg_nr
             return
 
@@ -356,9 +352,6 @@ PRI writeReg(reg_nr, nr_bytes, ptr_buff) | cmd_pkt
             cmd_pkt.byte[1] := reg_nr
             i2c.start{}
             i2c.wrblock_lsbf(@cmd_pkt, 2)
-
-' choose the block below appropriate to your device
-    ' write LSByte to MSByte
             i2c.wrblock_lsbf(ptr_buff, nr_bytes)
             i2c.stop{}
         other:
