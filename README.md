@@ -11,6 +11,7 @@ This is a P8X32A/Propeller, ~~P2X8C4M64P/Propeller 2~~ driver object for the RV3
 * I2C connection at up to 400kHz
 * Set date/time
 * Set automatic power supply switchover function
+* Set CLKOUT clock frequency output
 
 ## Requirements
 

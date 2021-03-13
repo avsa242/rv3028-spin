@@ -93,25 +93,23 @@ PUB BackupSwitchover(mode): curr_mode
 
     mode := ((curr_mode & core#BSM_MASK) | mode)
     writereg(core#EE_BACKUP, 1, @mode)
-{
+
 PUB ClockOutFreq(freq): curr_freq
 ' Set frequency of CLKOUT pin, in Hz
-'   Valid values: 0, 1, 32, 1024, 32768
+'   Valid values: 0, 1, 32, 64, 1024, 8192, 32768
 '   Any other value polls the chip and returns the current setting
     curr_freq := 0
-    readreg(core#CTRL_CLKOUT, 1, @curr_freq)
+    readreg(core#EE_CLKOUT, 1, @curr_freq)
     case freq
-        0:
-            freq := 1 << core#FE                ' Turn off clock output
-        1, 32, 1024, 32768:
-            freq := lookdownz(freq: 32768, 1024, 32, 1)
+        0, 1, 32, 64, 1024, 8192, 32768:
+            freq := lookdownz(freq: 32768, 8192, 1024, 64, 32, 1, 0, 0)
         other:
             curr_freq &= core#FD_BITS
-            return lookupz(curr_freq: 32768, 1024, 32, 1)
+            return lookupz(curr_freq: 32768, 8192, 1024, 64, 32, 1, 0, 0)
 
-    freq := ((curr_freq & core#FD_MASK & core#FE_MASK) | freq) & core#CTRL_CLKOUT_MASK
-    writereg(core#CTRL_CLKOUT, 1, @freq)
-}
+    freq := ((curr_freq & core#FD_MASK & core#FD_MASK) | freq)
+    writereg(core#EE_CLKOUT, 1, @freq)
+
 PUB Date(ptr_date)
 
 PUB DeviceID{}: id
