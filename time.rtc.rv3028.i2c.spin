@@ -246,28 +246,21 @@ PUB Seconds(second): curr_sec
             writereg(core#SECONDS, 1, @second)
         other:
             return bcd2int(_secs)
-{
+
 PUB Timer(val): curr_val
 ' Set countdown timer value
-'   Valid values: 0..255
+'   Valid values: 0..4095
 '   Any other value polls the chip and returns the current setting
-'   NOTE: The countdown period in seconds is equal to
-'       Timer() / TimerClockFreq()
-'       e.g., if Timer() is set to 255, and TimerClockFreq() is set to 1,
-'       the period is 255 seconds
+'   NOTE: Returned value when reading is the _set value_, not the current
+'   remaining time (for this, use TimerRemaining())
     case val
-        0..255:
-            writereg(core#TIMER, 1, @val)
+        0..4095:
+            writereg(core#TIMER_LSB, 2, @val)
         other:
-            repeat 2                                    ' Datasheet recommends
-                curr_val := 0                           ' 2 reads to check for
-                readreg(core#TIMER, 1, @curr_val.byte[0]) ' consistent results
-                readreg(core#TIMER, 1, @curr_val.byte[1]) '
-                if curr_val.byte[0] == curr_val.byte[1]
-                    curr_val.byte[1] := 0
-                    quit
+            curr_val := 0
+            readreg(core#TIMER_LSB, 2, @curr_val)
             return curr_val & core#TIMER_MASK
-}
+
 PUB TimerClockFreq(freq): curr_freq
 ' Set timer source clock frequency, in Hz
 '   Valid values:
@@ -299,6 +292,12 @@ PUB TimerEnabled(state): curr_state
 
     state := ((curr_state & core#TE_MASK) | state)
     writereg(core#CTRL1, 1, @state)
+
+PUB TimerRemaining{}: t
+' Countdown timer time remaining
+'   Returns: u12
+    readreg(core#TMRSTAT_LSB, 2, @t)
+    t &= core#TIMER_MASK
 
 PUB Weekday(wkday): curr_wkday
 ' Set day of week
