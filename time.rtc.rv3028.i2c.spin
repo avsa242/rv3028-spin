@@ -5,25 +5,29 @@
     Description: Driver for the RV3028 RTC
     Copyright (c) 2021
     Started Mar 13, 2021
-    Updated Mar 13, 2021
+    Updated Mar 14, 2021
     See end of file for terms of use.
     --------------------------------------------
 }
 
 CON
 
-    SLAVE_WR          = core#SLAVE_ADDR
-    SLAVE_RD          = core#SLAVE_ADDR|1
+    SLAVE_WR        = core#SLAVE_ADDR
+    SLAVE_RD        = core#SLAVE_ADDR|1
 
-    DEF_SCL           = 28
-    DEF_SDA           = 29
-    DEF_HZ            = 100_000
-    I2C_MAX_FREQ      = core#I2C_MAX_FREQ
+    DEF_SCL         = 28
+    DEF_SDA         = 29
+    DEF_HZ          = 100_000
+    I2C_MAX_FREQ    = core#I2C_MAX_FREQ
 
 ' Automatic backup switchover modes
     SWO_DIS         = %00
     SWO_DIRECT      = %01
     SWO_LEVEL       = %11
+
+' Interrupt active state
+    LOW             = 0
+    HIGH            = 1
 
 VAR
 
@@ -191,21 +195,22 @@ PUB IntMask(mask): curr_mask
 
     mask := ((curr_mask & core#IE_MASK) | mask)
     writereg(core#CTRL2, 1, @mask)
-{
+
 PUB IntPinState(state): curr_state
 ' Set interrupt pin active state
-'   WHEN_TF_ACTIVE (0): /INT is active when timer interrupt asserted
-'   INT_PULSES (1): /INT pulses at rate set by TimerClockFreq()
+'   LOW (0): /INT is active low
+'   HIGH (1): /INT is active high
     curr_state := 0
-    readreg(core#CTRLSTAT2, 1, @curr_state)
+    readreg(core#EVT_CTRL, 1, @curr_state)
     case state
-        WHEN_TF_ACTIVE, INT_PULSES:
+        LOW, HIGH:
+            state <<= core#EHL
         other:
-            return (curr_state >> core#TI_TP) & 1
+            return (curr_state >> core#EHL) & 1
 
-    state := ((curr_state & core#TI_TP_MASK) | state) & core#CTRLSTAT2_MASK
-    writereg(core#CTRLSTAT2, 1, @state)
-}
+    state := ((curr_state & core#EHL_MASK) | state) & core#EVT_CTRL_MASK
+    writereg(core#EVT_CTRL, 1, @state)
+
 PUB Month(m): curr_month
 ' Set month
 '   Valid values: 1..12

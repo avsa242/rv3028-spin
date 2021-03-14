@@ -42,7 +42,7 @@ PUB Main{} | wkday, month, day, yr
 
 ' Uncomment below to set date/time
 '                hh, mm, ss, MMM, DD, WKDAY, YY
-'    setdatetime(14, 31, 10, MAR, 13, SAT, 21)
+'    setdatetime(08, 45, 10, MAR, 14, SUN, 21)
 
 ' Uncomment below once, to enable automatically switching to
 '   backup battery power (date/time will not be retained over a power loss
