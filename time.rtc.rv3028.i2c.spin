@@ -137,25 +137,29 @@ PUB Hours(hr): curr_hr
             writereg(core#HOURS, 1, @hr)
         other:
             return bcd2int(_hours)
-{
+
 PUB IntClear(mask) | tmp
 ' Clear interrupts, using a bitmask
 '   Valid values:
-'       Bits: 1..0
-'           1: clear alarm interrupt
-'           0: clear timer interrupt
+'       Bits: 5..0
+'           5: Clock output interrupt flag
+'           4: Backup switchover flag
+'           3: Timer update flag
+'           2: Timer countdown flag
+'           1: Alarm flag
+'           0: External event (EVI pin)/Automatic Backup switchover flag
 '           For each bit, 0 to leave as-is, 1 to clear
 '   Any other value is ignored
     case mask
-        %01, %10, %11:
-            readreg(core#CTRLSTAT2, 1, @tmp)
-            mask := (mask ^ %11) << core#TF     ' Reg bits are inverted
-            tmp |= mask
-            tmp &= core#CTRLSTAT2_MASK
-            writereg(core#CTRLSTAT2, 1, @tmp)
+        %000000..%111111:
+            tmp := 0
+            readreg(core#STATUS, 1, @tmp)
+            mask := (mask ^ core#SINT_BITS) << core#SINT
+            tmp := ((tmp & core#SINT_MASK) | mask)
+            writereg(core#STATUS, 1, @tmp)
         other:
             return
-}
+
 PUB Interrupt{}: flags
 ' Flag indicating one or more interrupts asserted
 '   Bits: 5..0

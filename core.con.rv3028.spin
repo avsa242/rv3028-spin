@@ -65,6 +65,7 @@ CON
         AF_MASK     = (1 << AF) ^ STATUS_MASK
         EVF_MASK    = (1 << EVF) ^ STATUS_MASK
         PORF_MASK   = (1 << PORF) ^ STATUS_MASK
+        SINT_MASK   = (SINT_BITS << SINT) ^ STATUS_MASK
 
     CTRL1           = $0F
     CTRL1_MASK      = $BF
