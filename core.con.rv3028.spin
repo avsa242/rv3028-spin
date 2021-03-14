@@ -54,7 +54,9 @@ CON
         TF          = 3
         AF          = 2
         EVF         = 1
+        SINT        = 1                         ' interrupt/event bits (6..1)
         PORF        = 0
+        SINT_BITS   = %111111                   ' interrupt/event bits (6..1)
         EEBUSY_MASK = (1 << EEBUSY) ^ STATUS_MASK
         CLKF_MASK   = (1 << CLKF) ^ STATUS_MASK
         BSF_MASK    = (1 << BSF) ^ STATUS_MASK
@@ -91,7 +93,7 @@ CON
         IE          = 2
         HR12_24     = 1
         RESET       = 0
-        IE_BITS     = %111111
+        IE_BITS     = %11111
         TSE_MASK    = (1 << TSE) ^ CTRL2_MASK
         CLKIE_MASK  = (1 << CLKIE) ^ CTRL2_MASK
         UIE_MASK    = (1 << UIE) ^ CTRL2_MASK

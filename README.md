@@ -39,4 +39,5 @@ P2/SPIN2:
 
 ## TODO
 
-- [ ] TBD
+- [ ] Add support for interrupt/event time-stamping
+- [ ] Port to P2/SPIN2

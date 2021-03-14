@@ -155,18 +155,24 @@ PUB IntClear(mask) | tmp
             writereg(core#CTRLSTAT2, 1, @tmp)
         other:
             return
-
+}
 PUB Interrupt{}: flags
 ' Flag indicating one or more interrupts asserted
-    readreg(core#CTRLSTAT2, 1, @flags)
-    flags := (flags >> core#TF) & core#IF_BITS
-}
+'   Bits: 5..0
+'       5: Clock output interrupt flag
+'       4: Backup switchover flag
+'       3: Timer update flag
+'       2: Timer countdown flag
+'       1: Alarm flag
+'       0: External event (EVI pin)/Automatic Backup switchover flag
+    readreg(core#STATUS, 1, @flags)
+    return (flags >> core#SINT) & core#SINT_BITS
+
 PUB IntMask(mask): curr_mask
 ' Set interrupt mask
 '   Valid values:
-'       Bits: 5..0
-'           5: Enable time stamp
-'           4: Clock output on CLKOUT
+'       Bits: 4..0
+'           4: Enable clock output on CLKOUT
 '           3: Timer update event
 '           2: Timer countdown event
 '           1: Alarm event
@@ -174,7 +180,7 @@ PUB IntMask(mask): curr_mask
 '   Any other value polls the chip and returns the current setting
     readreg(core#CTRL2, 1, @curr_mask)
     case mask
-        0..%111111:
+        0..%11111:
             mask <<= core#EIE
         other:
             return ((curr_mask >> core#EIE) & core#IE_BITS)
