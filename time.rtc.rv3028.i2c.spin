@@ -5,7 +5,7 @@
     Description: Driver for the RV3028 RTC
     Copyright (c) 2021
     Started Mar 13, 2021
-    Updated Mar 14, 2021
+    Updated Mar 21, 2021
     See end of file for terms of use.
     --------------------------------------------
 }
@@ -100,7 +100,7 @@ PUB BackupSwitchover(mode): curr_mode
 
 PUB ClockOutFreq(freq): curr_freq
 ' Set frequency of CLKOUT pin, in Hz
-'   Valid values: 0, 1, 32, 64, 1024, 8192, 32768
+'   Valid values: 0, 1, 32, 64, 1024, 8192, *32768
 '   Any other value polls the chip and returns the current setting
     curr_freq := 0
     readreg(core#EE_CLKOUT, 1, @curr_freq)
@@ -114,33 +114,17 @@ PUB ClockOutFreq(freq): curr_freq
     freq := ((curr_freq & core#FD_MASK & core#FD_MASK) | freq)
     writereg(core#EE_CLKOUT, 1, @freq)
 
-PUB Date(ptr_date)
+PUB Date{}: curr_day
+' Get current date/day of month
+    return bcd2int(_days)
 
 PUB DeviceID{}: id
 ' Read device identification
     readreg(core#ID, 1, @id)
 
-PUB Day(d): curr_day
-' Set day of month
-'   Valid values: 1..31
-'   Any other value returns the last read current day
-    case d
-        1..31:
-            d := int2bcd(d)
-            writereg(core#DATE, 1, @d)
-        other:
-            return bcd2int(_days)
-
-PUB Hours(hr): curr_hr
-' Set hours
-'   Valid values: 0..23
-'   Any other value returns the last read current hour
-    case hr
-        0..23:
-            hr := int2bcd(hr)
-            writereg(core#HOURS, 1, @hr)
-        other:
-            return bcd2int(_hours)
+PUB Hours{}: curr_hr
+' Get current hour
+    return bcd2int(_hours)
 
 PUB IntClear(mask) | tmp
 ' Clear interrupts, using a bitmask
@@ -211,27 +195,13 @@ PUB IntPinState(state): curr_state
     state := ((curr_state & core#EHL_MASK) | state) & core#EVT_CTRL_MASK
     writereg(core#EVT_CTRL, 1, @state)
 
-PUB Month(m): curr_month
-' Set month
-'   Valid values: 1..12
-'   Any other value returns the last read current month
-    case m
-        1..12:
-            m := int2bcd(m)
-            writereg(core#MONTH, 1, @m)
-        other:
-            return bcd2int(_months)
+PUB Month{}: curr_month
+' Get current month
+    return bcd2int(_months)
 
-PUB Minutes(minute): curr_min
-' Set minutes
-'   Valid values: 0..59
-'   Any other value returns the last read current minute
-    case minute
-        0..59:
-            minute := int2bcd(minute)
-            writereg(core#MINUTES, 1, @minute)
-        other:
-            return bcd2int(_mins)
+PUB Minutes{}: curr_min
+' Get current minute
+    return bcd2int(_mins)
 
 PUB PollRTC{}
 ' Read the time data from the RTC and store it in hub RAM
@@ -251,16 +221,86 @@ PUB Reset{} | tmp
     tmp &= core#PORF_MASK
     writereg(core#STATUS, 1, @tmp)
 
-PUB Seconds(second): curr_sec
-' Set seconds
-'   Valid values: 0..59
-'   Any other value polls the RTC and returns the current second
-    case second
-        0..59:
-            second := int2bcd(second)
-            writereg(core#SECONDS, 1, @second)
+PUB Seconds{}: curr_sec
+' Get current second
+    return bcd2int(_secs)
+
+PUB SetDate(d)
+' Set current date/day of month
+'   Valid values: 1..31
+'   Any other value is ignored
+    case d
+        1..31:
+            d := int2bcd(d)
+            writereg(core#DATE, 1, @d)
         other:
-            return bcd2int(_secs)
+            return
+
+PUB SetHours(h)
+' Set current hour
+'   Valid values: 0..23
+'   Any other value is ignored
+    case h
+        0..23:
+            h := int2bcd(h)
+            writereg(core#HOURS, 1, @h)
+        other:
+            return
+
+PUB SetMinutes(m)
+' Set current minute
+'   Valid values: 0..59
+'   Any other value is ignored
+    case m
+        0..59:
+            m := int2bcd(m)
+            writereg(core#MINUTES, 1, @m)
+        other:
+            return
+
+PUB SetMonth(m)
+' Set current month
+'   Valid values: 1..12
+'   Any other value is ignored
+    case m
+        1..12:
+            m := int2bcd(m)
+            writereg(core#MONTH, 1, @m)
+        other:
+            return
+
+PUB SetSeconds(s)
+' Set current second
+'   Valid values: 0..59
+'   Any other value is ignored
+    case s
+        0..59:
+            s := int2bcd(s)
+            writereg(core#SECONDS, 1, @s)
+        other:
+            return
+
+PUB SetWeekday(w)
+' Set day of week
+'   Valid values: 1..7
+'   Any other value is ignored
+    case w
+        1..7:
+            w := int2bcd(w-1)
+            writereg(core#WKDAY, 1, @w)
+        other:
+            return
+
+PUB SetYear(y)
+' Set 2-digit year
+'   Valid values: 0..99
+'   Any other value is ignored
+    case y
+        0..99:
+            y := int2bcd(y)
+            writereg(core#YEAR, 1, @y)
+        other:
+            return
 
 PUB Timer(val): curr_val
 ' Set countdown timer value
@@ -279,7 +319,7 @@ PUB Timer(val): curr_val
 PUB TimerClockFreq(freq): curr_freq
 ' Set timer source clock frequency, in Hz
 '   Valid values:
-'       1_60 (1/60Hz), 1, 64, 4096
+'       1_60 (1/60Hz), 1, 64, *4096
 '   Any other value polls the chip and returns the current setting
     curr_freq := 0
     readreg(core#CTRL1, 1, @curr_freq)
@@ -295,7 +335,7 @@ PUB TimerClockFreq(freq): curr_freq
 
 PUB TimerEnabled(state): curr_state
 ' Enable countdown timer
-'   Valid values: TRUE (-1 or 1), FALSE (0)
+'   Valid values: TRUE (-1 or 1), *FALSE (0)
 '   Any other value polls the chip and returns the current setting
     curr_state := 0
     readreg(core#CTRL1, 1, @curr_state)
@@ -314,27 +354,13 @@ PUB TimerRemaining{}: t
     readreg(core#TMRSTAT_LSB, 2, @t)
     t &= core#TIMER_MASK
 
-PUB Weekday(wkday): curr_wkday
-' Set day of week
-'   Valid values: 1..7
-'   Any other value returns the last read current day of week
-    case wkday
-        1..7:
-            wkday := int2bcd(wkday-1)
-            writereg(core#WKDAY, 1, @wkday)
-        other:
-            return bcd2int(_wkdays) + 1
+PUB Weekday{}: curr_wkday
+' Get current week day
+    return bcd2int(_wkdays) + 1
 
-PUB Year(yr): curr_yr
-' Set 2-digit year
-'   Valid values: 0..99
-'   Any other value returns the last read current year
-    case yr
-        0..99:
-            yr := int2bcd(yr)
-            writereg(core#YEAR, 1, @yr)
-        other:
-            return bcd2int(_years)
+PUB Year{}: curr_yr
+' Get current year
+    return bcd2int(_years)
 
 PRI bcd2int(bcd): int
 ' Convert BCD (Binary Coded Decimal) to integer
