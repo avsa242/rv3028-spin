@@ -66,6 +66,7 @@ PUB Main{} | wkday, month, date, yr
         ser.str(int.deczeroed(rtc.minutes{}, 2))  ' string.integer
         ser.char(":")
         ser.str(int.deczeroed(rtc.seconds{}, 2))
+        time.msleep(1000)
 
 PUB SetDateTime(h, m, s, mmm, dd, wkday, yy)
 
