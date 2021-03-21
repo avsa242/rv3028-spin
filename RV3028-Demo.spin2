@@ -45,7 +45,6 @@ OBJ
 PUB Main() | wkday, month, date, yr
 
     setup()
-
 ' Uncomment below to set date/time
 '                hh, mm, ss, MMM, DD, WKDAY, YY
 '    setdatetime(06, 51, 00, MAR, 21, SUN, 21)
@@ -54,7 +53,6 @@ PUB Main() | wkday, month, date, yr
 '   backup battery power (date/time will not be retained over a power loss
 '   without this)
 '    rtc.backupswitchover(rtc.SWO_LEVEL)
-
     repeat
         rtc.pollrtc()
         ' get weekday and month name strings from DAT table below
@@ -72,6 +70,7 @@ PUB Main() | wkday, month, date, yr
         ser.str(int.deczeroed(rtc.minutes(), 2))  ' string.integer
         ser.char(":")
         ser.str(int.deczeroed(rtc.seconds(), 2))
+        waitms(1000)
 
 PUB SetDateTime(h, m, s, mmm, dd, wkday, yy)
 
@@ -96,7 +95,6 @@ PUB Setup()
         ser.strln(string("RV3028 driver failed to start - halting"))
         rtc.stop()
         waitms(50)
-        
         repeat
 
 DAT
