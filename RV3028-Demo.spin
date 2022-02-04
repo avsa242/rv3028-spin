@@ -3,9 +3,9 @@
     Filename: RV3028-Demo.spin
     Author: Jesse Burt
     Description: Demo of the RV3028 driver
-    Copyright (c) 2021
+    Copyright (c) 2022
     Started Mar 13, 2021
-    Updated Mar 21, 2021
+    Updated Feb 4, 2022
     See end of file for terms of use.
     --------------------------------------------
 }
@@ -34,7 +34,7 @@ OBJ
     ser     : "com.serial.terminal.ansi"
     time    : "time"
     int     : "string.integer"
-    rtc     : "time.rtc.rv3028.i2c"
+    rtc     : "time.rtc.rv3028"
 
 PUB Main{} | wkday, month, date, yr
 
@@ -89,9 +89,6 @@ PUB Setup{}
         ser.strln(string("RV3028 driver started"))
     else
         ser.strln(string("RV3028 driver failed to start - halting"))
-        rtc.stop{}
-        time.msleep(50)
-        ser.stop{}
         repeat
 
 DAT
