@@ -9,6 +9,11 @@
     Updated Aug 3, 2022
     See end of file for terms of use.
     --------------------------------------------
+
+    Build-time symbols supported by driver:
+        -DRV3028_I2C (default if none specified)
+        -DRV3028_I2C_BC
+
 }
 
 CON
