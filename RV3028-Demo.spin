@@ -6,7 +6,7 @@
         * Time/Date output
     Copyright (c) 2022
     Started Sep 6, 2020
-    Updated Aug 3, 2022
+    Updated Oct 16, 2022
     See end of file for terms of use.
     --------------------------------------------
 
@@ -36,12 +36,12 @@ CON
 
 OBJ
 
-    cfg     : "core.con.boardcfg.flip"
+    cfg     : "boardcfg.flip"
     ser     : "com.serial.terminal.ansi"
     time    : "time"
     rtc     : "time.rtc.rv3028"
 
-PUB Main{}
+PUB main{}
 
     ser.start(SER_BAUD)
     time.msleep(30)
