@@ -1,21 +1,28 @@
 {
-    --------------------------------------------
-    Filename: time.rtc.rv3028.spin2
-    Author: Jesse Burt
-    Description: Driver for the RV3028 RTC (P2 version)
-    Copyright (c) 2022
-    Started Mar 13, 2021
-    Updated Nov 27, 2022
-    See end of file for terms of use.
-    --------------------------------------------
+----------------------------------------------------------------------------------------------------
+    Filename:       time.rtc.rv3028.spin2
+    Description:    Driver for the RV3028 RTC
+    Author:         Jesse Burt
+    Started:        Mar 13, 2021
+    Updated:        Aug 11, 2024
+    Copyright (c) 2024 - See end of file for terms of use.
+----------------------------------------------------------------------------------------------------
 }
 #include "time.rtc.common.spin2h"
 
 CON
 
+    { default I/O configuration - these can be overridden by the parent object }
+    SCL             = 0
+    SDA             = 1
+    I2C_FREQ        = 100_000
+    I2C_ADDR        = 0
+
     SLAVE_WR        = core.SLAVE_ADDR
     SLAVE_RD        = core.SLAVE_ADDR|1
 
+    DEF_SCL         = 0
+    DEF_SDA         = 1
     DEF_HZ          = 100_000
     I2C_MAX_FREQ    = core.I2C_MAX_FREQ
 
@@ -28,6 +35,7 @@ CON
     LOW             = 0
     HIGH            = 1
 
+
 VAR
 
     long _clkdata_ok                            ' Clock data integrity
@@ -37,24 +45,38 @@ VAR
 
 OBJ
 
-    i2c : "com.i2c"                             ' I2C engine (up to 1MHz)
-    core: "core.con.rv3028"                     ' hw-specific low-level const's
+    i2c:    "com.i2c"                           ' I2C engine (up to 1MHz)
+    core:   "core.con.rv3028"                   ' HW-specific constants
+
 
 PUB null()
-' Thns is not a top-level object
+' This is not a top-level object
 
-PUB startx(SCL_PIN, SDA_PIN, I2C_HZ=DEF_HZ): status
-' Start using custom IO pins and I2C bus frequency (default is 100kHz)
-    if lookdown(SCL_PIN: 0..63) and lookdown(SDA_PIN: 0..63) and {
-}   I2C_HZ <= core.I2C_MAX_FREQ                 ' validate pins and bus freq
-        if (status := i2c.init(SCL_PIN, SDA_PIN, I2C_HZ))
+
+PUB start(): status
+' Start using default I/O configuration
+    return startx(SCL, SDA, I2C_FREQ, I2C_ADDR)
+
+
+PUB startx(SCL_PIN, SDA_PIN, I2C_HZ, ADDR_BITS): status
+' Start using custom IO pins and I2C bus frequen
+'   SCL_PIN:    I2C serial clock
+'   SDA_PIN:    I2C serial data
+'   I2C_HZ:     I2C bus speed
+'   ADDR_BITS:  alternate device address bits (not used by this driver)
+'   Returns:
+'       cog ID + 1 of I2C engine on success
+'       0 on failure
+    if ( lookdown(SCL_PIN: 0..63) and lookdown(SDA_PIN: 0..63) )
+        if ( status := i2c.init(SCL_PIN, SDA_PIN, I2C_HZ) )
             waitus(core.T_POR)                  ' wait for device startup
-            if (device_id() == core.DEVID_RESP) ' validate device
+            if ( dev_id() == core.DEVID_RESP )  ' verify device presence
                 return
     ' if this point is reached, something above failed
     ' Re-check I/O pin assignments, bus speed, connections, power
     ' Lastly - make sure you have at least one free core/cog 
     return FALSE
+
 
 PUB stop()
 ' Stop the driver
@@ -62,8 +84,10 @@ PUB stop()
     bytefill(@_secs, 0, 7)
     _clkdata_ok := 0
 
+
 PUB defaults()
 ' Set factory defaults
+
 
 PUB clk_data_ok(): flag
 ' Flag indicating supply voltage ok/clock data integrity ok
@@ -73,6 +97,7 @@ PUB clk_data_ok(): flag
     flag := 0
     readreg(core.STATUS, 1, @flag)
     _clkdata_ok := flag := ((flag & 1) == 0)
+
 
 PUB backup_switchover(mode): curr_mode
 ' Set backup power supply automatic switchover function
@@ -87,11 +112,11 @@ PUB backup_switchover(mode): curr_mode
     case mode
         SWO_DIS, SWO_DIRECT, SWO_LEVEL:
             mode <<= core.BSM
+            mode := ((curr_mode & core.BSM_MASK) | mode)
+            writereg(core.EE_BACKUP, 1, @mode)
         other:
             return ((curr_mode >> core.BSM) & core.BSM_BITS)
 
-    mode := ((curr_mode & core.BSM_MASK) | mode)
-    writereg(core.EE_BACKUP, 1, @mode)
 
 PUB clkout_freq(freq): curr_freq
 ' Set frequency of CLKOUT pin, in Hz
@@ -102,17 +127,18 @@ PUB clkout_freq(freq): curr_freq
     case freq
         0, 1, 32, 64, 1024, 8192, 32768:
             freq := lookdownz(freq: 32768, 8192, 1024, 64, 32, 1, 0, 0)
+            freq := ((curr_freq & core.FD_MASK & core.FD_MASK) | freq)
+            writereg(core.EE_CLKOUT, 1, @freq)
         other:
             curr_freq &= core.FD_BITS
             return lookupz(curr_freq: 32768, 8192, 1024, 64, 32, 1, 0, 0)
 
-    freq := ((curr_freq & core.FD_MASK & core.FD_MASK) | freq)
-    writereg(core.EE_CLKOUT, 1, @freq)
 
-PUB device_id(): id
+PUB dev_id(): id
 ' Read device identification
     id := 0
     readreg(core.ID, 1, @id)
+
 
 PUB int_clear(mask) | tmp
 ' Clear interrupts, using a bitmask
@@ -136,6 +162,7 @@ PUB int_clear(mask) | tmp
         other:
             return
 
+
 PUB interrupt(): flags
 ' Flag indicating one or more interrupts asserted
 '   Bits: 5..0
@@ -147,6 +174,7 @@ PUB interrupt(): flags
 '       0: External event (EVI pin)/Automatic Backup switchover flag
     readreg(core.STATUS, 1, @flags)
     return (flags >> core.SINT) & core.SINT_BITS
+
 
 PUB int_mask(mask): curr_mask
 ' Set interrupt mask
@@ -162,11 +190,11 @@ PUB int_mask(mask): curr_mask
     case mask
         0..%11111:
             mask <<= core.EIE
+            mask := ((curr_mask & core.IE_MASK) | mask)
+            writereg(core.CTRL2, 1, @mask)
         other:
             return ((curr_mask >> core.EIE) & core.IE_BITS)
 
-    mask := ((curr_mask & core.IE_MASK) | mask)
-    writereg(core.CTRL2, 1, @mask)
 
 PUB int_pin_state(state): curr_state
 ' Set interrupt pin active state
@@ -177,15 +205,16 @@ PUB int_pin_state(state): curr_state
     case state
         LOW, HIGH:
             state <<= core.EHL
+            state := ((curr_state & core.EHL_MASK) | state)
+            writereg(core.EVT_CTRL, 1, @state)
         other:
             return (curr_state >> core.EHL) & 1
 
-    state := ((curr_state & core.EHL_MASK) | state)
-    writereg(core.EVT_CTRL, 1, @state)
 
 PUB poll_rtc()
 ' Read the time data from the RTC and store it in hub RAM
     readreg(core.SECONDS, 7, @_secs)
+
 
 PUB reset() | tmp
 ' Perform soft-reset
@@ -201,6 +230,7 @@ PUB reset() | tmp
     tmp &= core.PORF_MASK
     writereg(core.STATUS, 1, @tmp)
 
+
 PUB set_date(d)
 ' Set current date/day of month
 '   Valid values: 1..31
@@ -211,6 +241,7 @@ PUB set_date(d)
             writereg(core.DATE, 1, @d)
         other:
             return
+
 
 PUB set_hours(h)
 ' Set current hour
@@ -223,6 +254,7 @@ PUB set_hours(h)
         other:
             return
 
+
 PUB set_minutes(m)
 ' Set current minute
 '   Valid values: 0..59
@@ -233,6 +265,7 @@ PUB set_minutes(m)
             writereg(core.MINUTES, 1, @m)
         other:
             return
+
 
 PUB set_month(m)
 ' Set current month
@@ -245,6 +278,7 @@ PUB set_month(m)
         other:
             return
 
+
 PUB set_seconds(s)
 ' Set current second
 '   Valid values: 0..59
@@ -255,6 +289,7 @@ PUB set_seconds(s)
             writereg(core.SECONDS, 1, @s)
         other:
             return
+
 
 PUB set_weekday(w)
 ' Set day of week
@@ -267,6 +302,7 @@ PUB set_weekday(w)
         other:
             return
 
+
 PUB set_year(y)
 ' Set 2-digit year
 '   Valid values: 0..99
@@ -278,19 +314,22 @@ PUB set_year(y)
         other:
             return
 
+
 PUB set_timer(val): curr_val
 ' Set countdown timer value
 '   Valid values: 0..4095 (clamped to range)
     val := (0 #> val <# 4095)
     writereg(core.TIMER_LSB, 2, @val)
 
-PUB timer{}: t
+
+PUB timer(): t
 ' Get currently set value of countdown timer
 '   NOTE: This returns the value set by set_timer(). For the current remaining time,
 '       use timer_remaining()
     t := 0
     readreg(core.TIMER_LSB, 2, @t)
     return (t & core.TIMER_MASK)
+
 
 PUB timer_clk_freq(freq): curr_freq
 ' Set timer source clock frequency, in Hz
@@ -302,12 +341,12 @@ PUB timer_clk_freq(freq): curr_freq
     case freq
         1_60, 1, 64, 4096:
             freq := lookdownz(freq: 4096, 64, 1, 1_60)
+            freq := ((curr_freq & core.TD_MASK) | freq)
+            writereg(core.CTRL1, 1, @freq)
         other:
             curr_freq &= core.TD_BITS
             return lookupz(curr_freq: 4096, 64, 1, 1_60)
 
-    freq := ((curr_freq & core.TD_MASK) | freq)
-    writereg(core.CTRL1, 1, @freq)
 
 PUB timer_ena(state): curr_state
 ' Enable countdown timer
@@ -318,17 +357,18 @@ PUB timer_ena(state): curr_state
     case abs(state)
         0, 1:
             state := abs(state) << core.TE
+            state := ((curr_state & core.TE_MASK) | state)
+            writereg(core.CTRL1, 1, @state)
         other:
             return ((curr_state >> core.TE) & 1) == 1
 
-    state := ((curr_state & core.TE_MASK) | state)
-    writereg(core.CTRL1, 1, @state)
 
 PUB timer_remaining(): t
 ' Countdown timer time remaining
 '   Returns: u12
     readreg(core.TMRSTAT_LSB, 2, @t)
     t &= core.TIMER_MASK
+
 
 PRI readreg(reg_nr, nr_bytes, ptr_buff) | cmd_pkt
 ' Read nr_bytes from the device into ptr_buff
@@ -344,6 +384,7 @@ PRI readreg(reg_nr, nr_bytes, ptr_buff) | cmd_pkt
             i2c.stop()
         other:                                  ' invalid reg_nr
             return
+
 
 PRI writereg(reg_nr, nr_bytes, ptr_buff) | cmd_pkt
 ' Write nr_bytes to the device from ptr_buff
@@ -361,7 +402,7 @@ PRI writereg(reg_nr, nr_bytes, ptr_buff) | cmd_pkt
 
 DAT
 {
-Copyright 2022 Jesse Burt
+Copyright 2024 Jesse Burt
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
 associated documentation files (the "Software"), to deal in the Software without restriction,

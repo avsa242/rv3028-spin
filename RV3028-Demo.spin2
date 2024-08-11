@@ -1,16 +1,16 @@
 {
-    --------------------------------------------
-    Filename: RV3028-Demo.spin
-    Author: Jesse Burt
-    Description: Demo of the RV3028 driver
+----------------------------------------------------------------------------------------------------
+    Filename:       RV3028-Demo.spin
+    Description:    Demo of the RV3028 driver
         * Time/Date output
-    Copyright (c) 2022
-    Started Sep 6, 2020
-    Updated Oct 16, 2022
-    See end of file for terms of use.
-    --------------------------------------------
+    Author:         Jesse Burt
+    Started:        Sep 6, 2020
+    Updated:        Aug 11, 2024
+    Copyright (c) 2024 - See end of file for terms of use.
+----------------------------------------------------------------------------------------------------
 }
-#include "core.con.click.spin2"
+#include "core.con.click.spin2"                 ' map I/O pin names (SCL_PIN, etc) to pin numbers
+
 
 CON
 
@@ -18,54 +18,51 @@ CON
     _xtlfreq    = cfg._xtlfreq
 
 ' -- User-modifiable constants
-    SER_BAUD    = 2_000_000
-    LED         = cfg.LED1
-
     CLICK_BASE  = 0
-
-    { I2C configuration }
-    { custom I/O pin definitions - uncomment the below, and comment out the #include
-        line above to use }
-'    SCL_PIN     = 0
-'    SDA_PIN     = 1
-    I2C_FREQ    = 100_000
 ' --
 
 ' Named constants that can be used in place of numerical month, or weekday
     #1, JAN, FEB, MAR, APR, MAY, JUN, JUL, AUG, SEP, OCT, NOV, DEC
     #1, SUN, MON, TUE, WED, THU, FRI, SAT
 
+
 OBJ
 
-    cfg     : "boardcfg.p2eval"
-    ser     : "com.serial.terminal.ansi"
-    rtc     : "time.rtc.rv3028"
+    cfg:    "boardcfg.p2eval"
+    ser:    "com.serial.terminal.ansi" | SER_BAUD=2_000_000
+
+    { MikroE Click boards (be sure to set the CLICK_BASE I/O pin above)  }
+    rtc:    "time.rtc.rv3028" | SCL=SCL_PIN, SDA=SDA_PIN, I2C_FREQ=100_000
+
+    { custom I/O pins }
+'    rtc:    "time.rtc.rv3028" | SCL=0, SDA=1, I2C_FREQ=400_000
+
 
 PUB main()
 
-    ser.start(SER_BAUD)
-    waitms(30)
-    ser.clear()
-    ser.strln(string("Serial terminal started"))
+    ser.start()
 
-    if rtc.startx(SCL_PIN, SDA_PIN, I2C_FREQ)
-        ser.strln(string("RV3028 driver started"))
+    ser.clear()
+    ser.strln(@"Serial terminal started")
+
+    if ( rtc.start() )
+        ser.strln(@"RV3028 driver started")
     else
-        ser.strln(string("RV3028 driver failed to start - halting"))
+        ser.strln(@"RV3028 driver failed to start - halting")
         repeat
 
-' Uncomment below to set date/time
-'   (only needs to be done once as long as RTC remains powered afterwards)
+' Uncomment the line below to set or change the date/time
+'    set_date_time(11, 44, 00, AUG, 11, SUN, 24)
+'   (this only needs to be done once as long as RTC remains powered afterwards)
 '                hh, mm, ss, MMM, DD, WKDAY, YY
-'    set_date_time(18, 48, 00, AUG, 02, TUE, 22)
 
     demo()
 
-#include "timedemo.common.spin2h"
+#include "timedemo.common.spin2h"               ' use code common to all RTC demos
 
 DAT
 {
-Copyright 2022 Jesse Burt
+Copyright 2024 Jesse Burt
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
 associated documentation files (the "Software"), to deal in the Software without restriction,
