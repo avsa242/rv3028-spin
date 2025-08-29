@@ -184,7 +184,7 @@ PUB int_mask(msk): c
             return ( (c >> core.EIE) & core.IE_BITS)
 
 
-PUB int_pin_state(s): c
+PUB int_polarity(s): c
 ' Set interrupt pin active state
 '   LOW (0): /INT is active low
 '   HIGH (1): /INT is active high
