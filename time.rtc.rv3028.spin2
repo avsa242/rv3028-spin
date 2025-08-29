@@ -4,8 +4,8 @@
     Description:    Driver for the RV3028 RTC
     Author:         Jesse Burt
     Started:        Mar 13, 2021
-    Updated:        Aug 11, 2024
-    Copyright (c) 2024 - See end of file for terms of use.
+    Updated:        Aug 29, 2025
+    Copyright (c) 2025 - See end of file for terms of use.
 ----------------------------------------------------------------------------------------------------
 }
 #include "time.rtc.common.spin2h"
@@ -21,15 +21,11 @@ CON
     SLAVE_WR        = core.SLAVE_ADDR
     SLAVE_RD        = core.SLAVE_ADDR|1
 
-    DEF_SCL         = 0
-    DEF_SDA         = 1
-    DEF_HZ          = 100_000
-    I2C_MAX_FREQ    = core.I2C_MAX_FREQ
-
     { Automatic backup switchover modes }
     SWO_DIS         = %00
     SWO_DIRECT      = %01
     SWO_LEVEL       = %11
+
 
     { Interrupt active state }
     LOW             = 0
@@ -59,7 +55,7 @@ PUB start(): status
 
 
 PUB startx(SCL_PIN, SDA_PIN, I2C_HZ, ADDR_BITS): status
-' Start using custom IO pins and I2C bus frequen
+' Start using custom IO pins and I2C bus frequency
 '   SCL_PIN:    I2C serial clock
 '   SDA_PIN:    I2C serial data
 '   I2C_HZ:     I2C bus speed
@@ -94,9 +90,7 @@ PUB clk_data_ok(): flag
 '   Returns:
 '       TRUE (-1): Supply voltage ok, clock data integrity guaranteed
 '       FALSE (0): Supply voltage low, clock data integrity not guaranteed
-    flag := 0
-    readreg(core.STATUS, 1, @flag)
-    _clkdata_ok := flag := ((flag & 1) == 0)
+    _clkdata_ok := flag := ( (readreg(core.STATUS) & 1) == 0)
 
 
 PUB backup_switchover(mode): curr_mode
@@ -107,28 +101,25 @@ PUB backup_switchover(mode): curr_mode
 '   NOTE: SWO_LEVEL (3) is recommended for use if the
 '       backup power supply voltage is similar to the Propeller's,
 '       to avoid unnecessary switching
-    curr_mode := 0
-    readreg(core.EE_BACKUP, 1, @curr_mode)
+    curr_mode := readreg(core.EE_BACKUP)
     case mode
         SWO_DIS, SWO_DIRECT, SWO_LEVEL:
-            mode <<= core.BSM
-            mode := ((curr_mode & core.BSM_MASK) | mode)
-            writereg(core.EE_BACKUP, 1, @mode)
+            mode := ( (curr_mode & core.BSM_MASK) | (mode << core.BSM) )
+            writereg(core.EE_BACKUP, mode)
         other:
-            return ((curr_mode >> core.BSM) & core.BSM_BITS)
+            return ( (curr_mode >> core.BSM) & core.BSM_BITS)
 
 
 PUB clkout_freq(freq): curr_freq
 ' Set frequency of CLKOUT pin, in Hz
 '   Valid values: 0, 1, 32, 64, 1024, 8192, *32768
 '   Any other value polls the chip and returns the current setting
-    curr_freq := 0
-    readreg(core.EE_CLKOUT, 1, @curr_freq)
+    curr_freq := readreg(core.EE_CLKOUT)
     case freq
         0, 1, 32, 64, 1024, 8192, 32768:
             freq := lookdownz(freq: 32768, 8192, 1024, 64, 32, 1, 0, 0)
-            freq := ((curr_freq & core.FD_MASK & core.FD_MASK) | freq)
-            writereg(core.EE_CLKOUT, 1, @freq)
+            freq := ( (curr_freq & core.FD_MASK & core.FD_MASK) | freq)
+            writereg(core.EE_CLKOUT, freq)
         other:
             curr_freq &= core.FD_BITS
             return lookupz(curr_freq: 32768, 8192, 1024, 64, 32, 1, 0, 0)
@@ -136,8 +127,7 @@ PUB clkout_freq(freq): curr_freq
 
 PUB dev_id(): id
 ' Read device identification
-    id := 0
-    readreg(core.ID, 1, @id)
+    return readreg(core.ID)
 
 
 PUB int_clear(mask) | tmp
@@ -154,11 +144,9 @@ PUB int_clear(mask) | tmp
 '   Any other value is ignored
     case mask
         %000000..%111111:
-            tmp := 0
-            readreg(core.STATUS, 1, @tmp)
             mask := (mask ^ core.SINT_BITS) << core.SINT
-            tmp := ((tmp & core.SINT_MASK) | mask)
-            writereg(core.STATUS, 1, @tmp)
+            tmp := ( (readreg(core.STATUS) & core.SINT_MASK) | mask)
+            writereg(core.STATUS, tmp)
         other:
             return
 
@@ -172,8 +160,7 @@ PUB interrupt(): flags
 '       2: Timer countdown flag
 '       1: Alarm flag
 '       0: External event (EVI pin)/Automatic Backup switchover flag
-    readreg(core.STATUS, 1, @flags)
-    return (flags >> core.SINT) & core.SINT_BITS
+    return (readreg(core.STATUS) >> core.SINT) & core.SINT_BITS
 
 
 PUB int_mask(mask): curr_mask
@@ -186,27 +173,24 @@ PUB int_mask(mask): curr_mask
 '           1: Alarm event
 '           0: External event (EVI pin)/Automatic Backup switchover event
 '   Any other value polls the chip and returns the current setting
-    readreg(core.CTRL2, 1, @curr_mask)
+    curr_mask := readreg(core.CTRL2)
     case mask
         0..%11111:
-            mask <<= core.EIE
-            mask := ((curr_mask & core.IE_MASK) | mask)
-            writereg(core.CTRL2, 1, @mask)
+            mask := ( (curr_mask & core.IE_MASK) | (mask << core.EIE) )
+            writereg(core.CTRL2, mask)
         other:
-            return ((curr_mask >> core.EIE) & core.IE_BITS)
+            return ( (curr_mask >> core.EIE) & core.IE_BITS)
 
 
 PUB int_pin_state(state): curr_state
 ' Set interrupt pin active state
 '   LOW (0): /INT is active low
 '   HIGH (1): /INT is active high
-    curr_state := 0
-    readreg(core.EVT_CTRL, 1, @curr_state)
+    curr_state := readreg(core.EVT_CTRL)
     case state
         LOW, HIGH:
-            state <<= core.EHL
-            state := ((curr_state & core.EHL_MASK) | state)
-            writereg(core.EVT_CTRL, 1, @state)
+            state := ((curr_state & core.EHL_MASK) | (state << core.EHL) )
+            writereg(core.EVT_CTRL, state)
         other:
             return (curr_state >> core.EHL) & 1
 
@@ -218,17 +202,14 @@ PUB poll_rtc()
 
 PUB reset() | tmp
 ' Perform soft-reset
-    tmp := 0
-
-    readreg(core.CTRL2, 1, @tmp)
+    tmp := readreg(core.CTRL2)
     tmp := (tmp & core.RESET_MASK) | 1
-    writereg(core.CTRL2, 1, @tmp)               ' soft-reset
+    writereg(core.CTRL2, tmp)                   ' soft-reset
 
     tmp := 0
 
-    readreg(core.STATUS, 1, @tmp)               ' clear the power-on/reset flag
-    tmp &= core.PORF_MASK
-    writereg(core.STATUS, 1, @tmp)
+    ' clear the power-on/reset flag
+    writereg(core.STATUS, readreg(core.STATUS) & core.PORF_MASK)
 
 
 PUB set_date(d)
@@ -237,8 +218,7 @@ PUB set_date(d)
 '   Any other value is ignored
     case d
         1..31:
-            d := int2bcd(d)
-            writereg(core.DATE, 1, @d)
+            writereg(core.DATE, int2bcd(d) )
         other:
             return
 
@@ -249,8 +229,7 @@ PUB set_hours(h)
 '   Any other value is ignored
     case h
         0..23:
-            h := int2bcd(h)
-            writereg(core.HOURS, 1, @h)
+            writereg(core.HOURS, int2bcd(h) )
         other:
             return
 
@@ -261,8 +240,7 @@ PUB set_minutes(m)
 '   Any other value is ignored
     case m
         0..59:
-            m := int2bcd(m)
-            writereg(core.MINUTES, 1, @m)
+            writereg(core.MINUTES, int2bcd(m) )
         other:
             return
 
@@ -273,8 +251,7 @@ PUB set_month(m)
 '   Any other value is ignored
     case m
         1..12:
-            m := int2bcd(m)
-            writereg(core.MONTH, 1, @m)
+            writereg(core.MONTH, int2bcd(m) )
         other:
             return
 
@@ -285,8 +262,7 @@ PUB set_seconds(s)
 '   Any other value is ignored
     case s
         0..59:
-            s := int2bcd(s)
-            writereg(core.SECONDS, 1, @s)
+            writereg(core.SECONDS, int2bcd(s) )
         other:
             return
 
@@ -297,8 +273,7 @@ PUB set_weekday(w)
 '   Any other value is ignored
     case w
         1..7:
-            w := int2bcd(w-1)
-            writereg(core.WKDAY, 1, @w)
+            writereg(core.WKDAY, int2bcd(w-1) )
         other:
             return
 
@@ -309,8 +284,7 @@ PUB set_year(y)
 '   Any other value is ignored
     case y
         0..99:
-            y := int2bcd(y)
-            writereg(core.YEAR, 1, @y)
+            writereg(core.YEAR, int2bcd(y) )
         other:
             return
 
@@ -318,17 +292,14 @@ PUB set_year(y)
 PUB set_timer(val): curr_val
 ' Set countdown timer value
 '   Valid values: 0..4095 (clamped to range)
-    val := (0 #> val <# 4095)
-    writereg(core.TIMER_LSB, 2, @val)
+    writereg(core.TIMER_LSB, val := (0 #> val <# 4095), 2)
 
 
 PUB timer(): t
 ' Get currently set value of countdown timer
 '   NOTE: This returns the value set by set_timer(). For the current remaining time,
 '       use timer_remaining()
-    t := 0
-    readreg(core.TIMER_LSB, 2, @t)
-    return (t & core.TIMER_MASK)
+    return (readreg(core.TIMER_LSB, 2) & core.TIMER_MASK)
 
 
 PUB timer_clk_freq(freq): curr_freq
@@ -336,13 +307,11 @@ PUB timer_clk_freq(freq): curr_freq
 '   Valid values:
 '       1_60 (1/60Hz), 1, 64, *4096
 '   Any other value polls the chip and returns the current setting
-    curr_freq := 0
-    readreg(core.CTRL1, 1, @curr_freq)
+    curr_freq := readreg(core.CTRL1)
     case freq
         1_60, 1, 64, 4096:
-            freq := lookdownz(freq: 4096, 64, 1, 1_60)
-            freq := ((curr_freq & core.TD_MASK) | freq)
-            writereg(core.CTRL1, 1, @freq)
+            freq := ((curr_freq & core.TD_MASK) | lookdownz(freq: 4096, 64, 1, 1_60) )
+            writereg(core.CTRL1, freq)
         other:
             curr_freq &= core.TD_BITS
             return lookupz(curr_freq: 4096, 64, 1, 1_60)
@@ -352,13 +321,11 @@ PUB timer_ena(state): curr_state
 ' Enable countdown timer
 '   Valid values: TRUE (-1 or 1), *FALSE (0)
 '   Any other value polls the chip and returns the current setting
-    curr_state := 0
-    readreg(core.CTRL1, 1, @curr_state)
+    curr_state := readreg(core.CTRL1)
     case abs(state)
         0, 1:
-            state := abs(state) << core.TE
-            state := ((curr_state & core.TE_MASK) | state)
-            writereg(core.CTRL1, 1, @state)
+            state := ((curr_state & core.TE_MASK) | abs(state) << core.TE )
+            writereg(core.CTRL1, state)
         other:
             return ((curr_state >> core.TE) & 1) == 1
 
@@ -366,12 +333,12 @@ PUB timer_ena(state): curr_state
 PUB timer_remaining(): t
 ' Countdown timer time remaining
 '   Returns: u12
-    readreg(core.TMRSTAT_LSB, 2, @t)
-    t &= core.TIMER_MASK
+    return readreg(core.TMRSTAT_LSB, 2) & core.TIMER_MASK
 
 
-PRI readreg(reg_nr, nr_bytes, ptr_buff) | cmd_pkt
+PRI readreg(reg_nr, len=1, p_dest=0): v | cmd_pkt
 ' Read nr_bytes from the device into ptr_buff
+    v := 0
     case reg_nr                                 ' validate register num
         $00..$3F:
             cmd_pkt.byte[0] := SLAVE_WR
@@ -380,13 +347,15 @@ PRI readreg(reg_nr, nr_bytes, ptr_buff) | cmd_pkt
             i2c.wrblock_lsbf(@cmd_pkt, 2)
             i2c.start()
             i2c.wr_byte(SLAVE_RD)
-            i2c.rdblock_lsbf(ptr_buff, nr_bytes, i2c.NAK)
+            ifnot ( p_dest )
+                p_dest := @v
+            i2c.rdblock_lsbf(p_dest, len, i2c.NAK)
             i2c.stop()
         other:                                  ' invalid reg_nr
             return
 
 
-PRI writereg(reg_nr, nr_bytes, ptr_buff) | cmd_pkt
+PRI writereg(reg_nr, val, len=1) | cmd_pkt
 ' Write nr_bytes to the device from ptr_buff
     case reg_nr
         $00..$2A, $2C..$3F:
@@ -394,7 +363,7 @@ PRI writereg(reg_nr, nr_bytes, ptr_buff) | cmd_pkt
             cmd_pkt.byte[1] := reg_nr
             i2c.start()
             i2c.wrblock_lsbf(@cmd_pkt, 2)
-            i2c.wrblock_lsbf(ptr_buff, nr_bytes)
+            i2c.wrblock_lsbf(@val, len)
             i2c.stop()
         other:
             return
@@ -402,7 +371,7 @@ PRI writereg(reg_nr, nr_bytes, ptr_buff) | cmd_pkt
 
 DAT
 {
-Copyright 2024 Jesse Burt
+Copyright 2025 Jesse Burt
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
 associated documentation files (the "Software"), to deal in the Software without restriction,
