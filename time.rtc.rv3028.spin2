@@ -85,15 +85,15 @@ PUB defaults()
 ' Set factory defaults
 
 
-PUB clk_data_ok(): flag
+PUB clk_data_ok(): f
 ' Flag indicating supply voltage ok/clock data integrity ok
 '   Returns:
 '       TRUE (-1): Supply voltage ok, clock data integrity guaranteed
 '       FALSE (0): Supply voltage low, clock data integrity not guaranteed
-    _clkdata_ok := flag := ( (readreg(core.STATUS) & 1) == 0)
+    _clkdata_ok := f := ( (readreg(core.STATUS) & 1) == 0)
 
 
-PUB backup_switchover(mode): curr_mode
+PUB backup_switchover(md): c
 ' Set backup power supply automatic switchover function
 '  *SWO_DIS (0): Switchover disabled
 '   SWO_DIRECT (1): Switch when Vdd < Vbackup
@@ -101,28 +101,28 @@ PUB backup_switchover(mode): curr_mode
 '   NOTE: SWO_LEVEL (3) is recommended for use if the
 '       backup power supply voltage is similar to the Propeller's,
 '       to avoid unnecessary switching
-    curr_mode := readreg(core.EE_BACKUP)
-    case mode
+    c := readreg(core.EE_BACKUP)
+    case md
         SWO_DIS, SWO_DIRECT, SWO_LEVEL:
-            mode := ( (curr_mode & core.BSM_MASK) | (mode << core.BSM) )
-            writereg(core.EE_BACKUP, mode)
+            md := ( (c & core.BSM_MASK) | (md << core.BSM) )
+            writereg(core.EE_BACKUP, md)
         other:
-            return ( (curr_mode >> core.BSM) & core.BSM_BITS)
+            return ( (c >> core.BSM) & core.BSM_BITS)
 
 
-PUB clkout_freq(freq): curr_freq
+PUB clkout_freq(frq): c
 ' Set frequency of CLKOUT pin, in Hz
 '   Valid values: 0, 1, 32, 64, 1024, 8192, *32768
 '   Any other value polls the chip and returns the current setting
-    curr_freq := readreg(core.EE_CLKOUT)
-    case freq
+    c := readreg(core.EE_CLKOUT)
+    case frq
         0, 1, 32, 64, 1024, 8192, 32768:
-            freq := lookdownz(freq: 32768, 8192, 1024, 64, 32, 1, 0, 0)
-            freq := ( (curr_freq & core.FD_MASK & core.FD_MASK) | freq)
-            writereg(core.EE_CLKOUT, freq)
+            frq := lookdownz(frq: 32768, 8192, 1024, 64, 32, 1, 0, 0)
+            frq := ( (c & core.FD_MASK & core.FD_MASK) | frq)
+            writereg(core.EE_CLKOUT, frq)
         other:
-            curr_freq &= core.FD_BITS
-            return lookupz(curr_freq: 32768, 8192, 1024, 64, 32, 1, 0, 0)
+            c &= core.FD_BITS
+            return lookupz(c: 32768, 8192, 1024, 64, 32, 1, 0, 0)
 
 
 PUB dev_id(): id
@@ -130,7 +130,7 @@ PUB dev_id(): id
     return readreg(core.ID)
 
 
-PUB int_clear(mask) | tmp
+PUB int_clear(msk) | tmp
 ' Clear interrupts, using a bitmask
 '   Valid values:
 '       Bits: 5..0
@@ -142,16 +142,12 @@ PUB int_clear(mask) | tmp
 '           0: External event (EVI pin)/Automatic Backup switchover flag
 '           For each bit, 0 to leave as-is, 1 to clear
 '   Any other value is ignored
-    case mask
-        %000000..%111111:
-            mask := (mask ^ core.SINT_BITS) << core.SINT
-            tmp := ( (readreg(core.STATUS) & core.SINT_MASK) | mask)
-            writereg(core.STATUS, tmp)
-        other:
-            return
+    msk := ( (msk & %111111) ^ core.SINT_BITS) << core.SINT
+    tmp := ( (readreg(core.STATUS) & core.SINT_MASK) | msk)
+    writereg(core.STATUS, tmp)
 
 
-PUB interrupt(): flags
+PUB interrupt(): i
 ' Flag indicating one or more interrupts asserted
 '   Bits: 5..0
 '       5: Clock output interrupt flag
@@ -163,7 +159,7 @@ PUB interrupt(): flags
     return (readreg(core.STATUS) >> core.SINT) & core.SINT_BITS
 
 
-PUB int_mask(mask): curr_mask
+PUB int_mask(msk): c
 ' Set interrupt mask
 '   Valid values:
 '       Bits: 4..0
@@ -173,26 +169,26 @@ PUB int_mask(mask): curr_mask
 '           1: Alarm event
 '           0: External event (EVI pin)/Automatic Backup switchover event
 '   Any other value polls the chip and returns the current setting
-    curr_mask := readreg(core.CTRL2)
-    case mask
+    c := readreg(core.CTRL2)
+    case msk
         0..%11111:
-            mask := ( (curr_mask & core.IE_MASK) | (mask << core.EIE) )
-            writereg(core.CTRL2, mask)
+            msk := ( (c & core.IE_MASK) | (msk << core.EIE) )
+            writereg(core.CTRL2, msk)
         other:
-            return ( (curr_mask >> core.EIE) & core.IE_BITS)
+            return ( (c >> core.EIE) & core.IE_BITS)
 
 
-PUB int_pin_state(state): curr_state
+PUB int_pin_state(s): c
 ' Set interrupt pin active state
 '   LOW (0): /INT is active low
 '   HIGH (1): /INT is active high
-    curr_state := readreg(core.EVT_CTRL)
-    case state
+    c := readreg(core.EVT_CTRL)
+    case s
         LOW, HIGH:
-            state := ((curr_state & core.EHL_MASK) | (state << core.EHL) )
-            writereg(core.EVT_CTRL, state)
+            s := ((c & core.EHL_MASK) | (s << core.EHL) )
+            writereg(core.EVT_CTRL, s)
         other:
-            return (curr_state >> core.EHL) & 1
+            return (c >> core.EHL) & 1
 
 
 PUB poll_rtc()
@@ -289,7 +285,7 @@ PUB set_year(y)
             return
 
 
-PUB set_timer(val): curr_val
+PUB set_timer(val)
 ' Set countdown timer value
 '   Valid values: 0..4095 (clamped to range)
     writereg(core.TIMER_LSB, val := (0 #> val <# 4095), 2)
@@ -302,32 +298,32 @@ PUB timer(): t
     return (readreg(core.TIMER_LSB, 2) & core.TIMER_MASK)
 
 
-PUB timer_clk_freq(freq): curr_freq
+PUB timer_clk_freq(frq): c
 ' Set timer source clock frequency, in Hz
 '   Valid values:
 '       1_60 (1/60Hz), 1, 64, *4096
 '   Any other value polls the chip and returns the current setting
-    curr_freq := readreg(core.CTRL1)
-    case freq
+    c := readreg(core.CTRL1)
+    case frq
         1_60, 1, 64, 4096:
-            freq := ((curr_freq & core.TD_MASK) | lookdownz(freq: 4096, 64, 1, 1_60) )
-            writereg(core.CTRL1, freq)
+            frq := ((c & core.TD_MASK) | lookdownz(frq: 4096, 64, 1, 1_60) )
+            writereg(core.CTRL1, frq)
         other:
-            curr_freq &= core.TD_BITS
-            return lookupz(curr_freq: 4096, 64, 1, 1_60)
+            c &= core.TD_BITS
+            return lookupz(c: 4096, 64, 1, 1_60)
 
 
-PUB timer_ena(state): curr_state
+PUB timer_ena(t): c
 ' Enable countdown timer
 '   Valid values: TRUE (-1 or 1), *FALSE (0)
 '   Any other value polls the chip and returns the current setting
-    curr_state := readreg(core.CTRL1)
-    case abs(state)
+    c := readreg(core.CTRL1)
+    case abs(t)
         0, 1:
-            state := ((curr_state & core.TE_MASK) | abs(state) << core.TE )
-            writereg(core.CTRL1, state)
+            t := ((c & core.TE_MASK) | abs(t) << core.TE )
+            writereg(core.CTRL1, t)
         other:
-            return ((curr_state >> core.TE) & 1) == 1
+            return ((c >> core.TE) & 1) == 1
 
 
 PUB timer_remaining(): t
